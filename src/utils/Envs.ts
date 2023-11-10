@@ -1,0 +1,10 @@
+export const login_page = "http://localhost:5173/login" as const;
+export const signup_page = "http://localhost:5173/signup" as const;
+export const base_url = "http://localhost:5000" as const;
+export const jwt_signature = Bun.env?.jwt_signature as string ;
+export const db_url = Bun.env?.db_url as string;
+export const port = +(Bun.env?.port as unknown as number) || 5000;
+export const email = Bun.env?.email as string;
+export const password = Bun.env?.password as string;
+export const Expiration_Time = 172800;
+export const valid_uploads = ["image/png", "image/jpeg"] as const;
