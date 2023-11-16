@@ -8,6 +8,7 @@
     "@elysiajs/cookie": "^0.7.0",
     "@elysiajs/cors": "^0.7.1",
     "@elysiajs/jwt": "^0.7.0",
+    "bun": "^1.0.12",
     "elysia": "latest",
     "mongoose": "^7.6.3",
     "nodemailer": "^6.9.7"

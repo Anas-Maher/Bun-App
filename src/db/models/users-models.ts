@@ -1,19 +1,19 @@
 import { Prettify } from "elysia/dist/types.js";
 import { Schema, model, InferSchemaType, Types } from "mongoose";
-import create_password from "../../utils/create_password.js";
+import Hash_password from "../../utils/create_password.js";
 export interface User {
     user_name: string;
     email: Lowercase<string>;
     role?: "user" | "admin";
     confirmed?: boolean;
-    phone: string;
+    phone?: string;
     activation_code: {
         valid: boolean;
         code: string;
     };
     forget_code?: string;
     password: string;
-    videos: string[];
+    videos: Types.Array<string>;
 }
 export const users_schema = new Schema<User>(
     {
@@ -39,7 +39,7 @@ export const users_schema = new Schema<User>(
             default: false,
         },
         password: { type: String, required: true },
-        phone: { type: String, required: true },
+        phone: { type: String },
         activation_code: {
             type: {
                 valid: {
@@ -72,9 +72,4 @@ const users_model = model<Prettify<InferSchemaType<typeof users_schema>>>(
     users_schema
 );
 
-users_schema.pre("save", function () {
-    if (this.isModified(this.password)) {
-        this.password = create_password(this.password)
-    }
-});
 export default users_model;
