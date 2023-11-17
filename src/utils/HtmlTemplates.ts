@@ -13,7 +13,8 @@ export const Generate_Html = (
         .join("\n");
 };
 
-export const email_template = (link: string): string => `
+export default function email_template(link: string): string {
+    return `
     <!DOCTYPE html>
     <html>
         <head>
@@ -82,3 +83,4 @@ export const email_template = (link: string): string => `
         </body>
     </html>
 `;
+}

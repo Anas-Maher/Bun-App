@@ -5,9 +5,9 @@ const Connect = async () => {
     try {
         const db = await mongoose?.connect(db_url, {
             connectTimeoutMS: 100,
-            dbName : 'app'
+            dbName: "app",
         });
-        console.log("Db connected");
+        console.log("Connected");
         return db;
     } catch (error) {
         console.error("error : ", error);

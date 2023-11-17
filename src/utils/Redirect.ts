@@ -1,4 +1,4 @@
-function name(url: URL | string , status? : number) {
+function redirect(url: URL | string , status? : number) {
 	return Response.redirect(url.toString() , {
 		status ,
 		headers : {
@@ -7,3 +7,6 @@ function name(url: URL | string , status? : number) {
 		}
 	})
 }
+
+
+export default redirect;

@@ -18,18 +18,12 @@ const letters = [
     "d",
     "D",
     "e",
-    "e",
-    "e",
-    "E",
-    "E",
     "E",
     "f",
     "F",
     "g",
     "G",
     "h",
-    "h",
-    "H",
     "H",
     "i",
     "I",
@@ -44,18 +38,11 @@ const letters = [
     "n",
     "N",
     "o",
-    "o",
-    "o",
-    "o",
-    "O",
-    "O",
-    "O",
     "O",
     "p",
     "P",
     "q",
     "Q",
-    "r",
     "r",
     "R",
     "R",
@@ -67,7 +54,6 @@ const letters = [
     "T",
     "u",
     "u",
-    "U",
     "U",
     "v",
     "V",
@@ -81,11 +67,11 @@ const letters = [
     "Z",
 ];
 
-function Format(name: string): string {
+function format(name: string): string {
     return name
-        .split("")
+        .split(/-|_|,/)
         .filter((v) => letters.includes(v))
-        .join("");
+        .join(" ");
 }
 
-export default Format;
+export default format;

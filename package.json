@@ -1,12 +1,13 @@
 {
   "name": "bun",
-  "version": "1.0.50",
+  "version": "1.0.0",
   "scripts": {
-    "dev": "bun run --hot src/index.ts"
+    "dev": "bun run --watch src/App.tsx"
   },
   "dependencies": {
     "@elysiajs/cookie": "^0.7.0",
     "@elysiajs/cors": "^0.7.1",
+    "@elysiajs/html": "^0.7.3",
     "@elysiajs/jwt": "^0.7.0",
     "bun": "^1.0.12",
     "elysia": "latest",
@@ -17,5 +18,5 @@
     "@types/nodemailer": "^6.4.13",
     "bun-types": "latest"
   },
-  "module": "src/index.js"
+  "module": "src/App.js"
 }

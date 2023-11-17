@@ -1,6 +1,4 @@
-import { Prettify } from "elysia/dist/types.js";
-import { Schema, model, InferSchemaType, Types } from "mongoose";
-import Hash_password from "../../utils/create_password.js";
+import { Schema, model, type InferSchemaType } from "mongoose";
 export interface User {
     user_name: string;
     email: Lowercase<string>;
@@ -13,9 +11,8 @@ export interface User {
     };
     forget_code?: string;
     password: string;
-    videos: Types.Array<string>;
 }
-export const users_schema = new Schema<User>(
+const users_schema = new Schema<User>(
     {
         user_name: {
             type: String,
@@ -54,7 +51,6 @@ export const users_schema = new Schema<User>(
                 },
             },
         },
-        videos: [{ type: String, required: true }],
         forget_code: String,
     },
     {
@@ -67,7 +63,7 @@ export const users_schema = new Schema<User>(
     }
 );
 
-const users_model = model<Prettify<InferSchemaType<typeof users_schema>>>(
+const users_model = model<InferSchemaType<typeof users_schema>>(
     "users",
     users_schema
 );

@@ -1,4 +1,4 @@
-import random_string from "./generate_code";
+import random_string from "./RandomString";
 
 function Hash_password(password: string, rounds: number = 11, salt?: string) {
     salt = salt?.trim() || random_string();

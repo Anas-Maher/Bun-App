@@ -1,26 +1,30 @@
 import Elysia, { t as types } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { jwt } from "@elysiajs/jwt";
-import json from "./utils/Json";
-import Connect from "./db/connect";
+import { Connect, users_model, tokens_model, videos_model } from "./DB";
 import {
+    json,
     Expiration_Time,
     port,
     jwt_signature,
     base_url,
-} from "./utils/Envs.js";
-import users_model from "./db/models/users-models.js";
-import token_model from "./db/models/token-model.js";
-import random_string from "./utils/generate_code.js";
-import { email_template } from "./utils/HtmlTemplates.js";
-import SendMail from "./utils/SendMail.js";
-import compare_password from "./utils/compare_passwords.js";
-import Hash_password from "./utils/create_password";
-import check_password_strength from "./utils/check_password_strength";
-import global_error_handler from "./utils/catch_error_global";
+    random_string,
+    SendMail,
+    compare_passwords,
+    Hash_password,
+    check_password,
+    global_error_handler,
+    email_template,
+    Auth,
+} from "./utils";
+import { html } from "@elysiajs/html";
 const app = new Elysia();
 await Connect();
 app.use(cors())
+    // .use(
+    //     // @ts-ignore
+    //     html({ autoDoctype: true })
+    // )
     .use(
         jwt({
             name: "jwt",
@@ -40,10 +44,10 @@ app.use(cors())
                             role = "user",
                             password,
                         } = body;
-                        const { valid, message } =
-                            check_password_strength(password);
+                        const { valid, message } = check_password(password);
                         if (!valid) {
-                            throw new Error(message, { cause: 401 });
+                            console.log("err");
+                            throw new Error(message, { cause: 400 });
                         }
                         const user = await users_model.findOne({
                             email,
@@ -83,7 +87,7 @@ app.use(cors())
                             "error ocurred , please try to signup again"
                         );
                     } catch (error: any) {
-                        global_error_handler(error);
+                        return global_error_handler(error);
                     }
                 },
                 {
@@ -107,7 +111,7 @@ app.use(cors())
                         switch (code) {
                             case "VALIDATION": {
                                 return json({
-                                    error: "user_name , password and email are required",
+                                    error: "user_name , password and email are required \n password must be at least 8 characters",
                                 });
                             }
                             case "PARSE": {
@@ -203,7 +207,7 @@ app.use(cors())
                         if (!user) {
                             throw new Error("please register now");
                         }
-                        const allowed = compare_password(
+                        const allowed = compare_passwords(
                             password,
                             user.password
                         );
@@ -217,12 +221,12 @@ app.use(cors())
                         const agent = headers?.agent as string;
                         const [{ status: status1 }, { status: status2 }] =
                             await Promise.allSettled([
-                                token_model.create({
+                                await tokens_model.create({
                                     agent,
                                     token,
                                     user: user.id,
                                 }),
-                                user.updateOne(
+                                await user.updateOne(
                                     { $set: { status: "online" } },
                                     { new: true }
                                 ),
@@ -235,7 +239,7 @@ app.use(cors())
                         }
                         return json({ payload: token });
                     } catch (error: any) {
-                        global_error_handler(error);
+                        return global_error_handler(error);
                     }
                 },
                 {
@@ -284,7 +288,7 @@ app.use(cors())
                         const sent = await SendMail({
                             to: user.email,
                             subject: "Reset Password",
-                            text: `HI ${user.user_name} \n your code to reset your password is ${forget_code}`,
+                            text: `HI ${user.user_name}\nyour code to reset your password is ${forget_code}`,
                         });
                         if (sent) {
                             await user.updateOne(
@@ -297,12 +301,16 @@ app.use(cors())
                                     new: true,
                                 }
                             );
+                            return json({
+                                payload:
+                                    "Check Your Email To reset Your Password",
+                            });
                         }
                         throw new Error("sorry , please try again", {
                             cause: 500,
                         });
                     } catch (error: any) {
-                        global_error_handler(error);
+                        return global_error_handler(error);
                     }
                 },
                 {
@@ -339,8 +347,7 @@ app.use(cors())
                 async ({ body }) => {
                     try {
                         const { email, forget_code, password } = body;
-                        const { valid, message } =
-                            check_password_strength(password);
+                        const { valid, message } = check_password(password);
                         if (!valid) {
                             throw new Error(message, { cause: 401 });
                         }
@@ -348,13 +355,16 @@ app.use(cors())
                             {
                                 $and: [{ email, forget_code }],
                             },
-                            { $set: { password: Hash_password(password) } },
+                            {
+                                $set: { password: Hash_password(password) },
+                                $unset: { forget_code: 1 },
+                            },
                             { new: true }
                         );
                         if (!user) {
                             throw new Error("user not found", { cause: 403 });
                         }
-                        const tokens = await token_model.find();
+                        const tokens = await tokens_model.find();
                         tokens.forEach(async (token) => {
                             await token.updateOne(
                                 {
@@ -365,8 +375,9 @@ app.use(cors())
                                 { new: true }
                             );
                         });
+                        return json({ payload: "done! now login again" });
                     } catch (error: any) {
-                        global_error_handler(error);
+                        return global_error_handler(error);
                     }
                 },
                 {
@@ -382,7 +393,7 @@ app.use(cors())
                         switch (code) {
                             case "VALIDATION": {
                                 return json({
-                                    error: "email and password are required",
+                                    error: "email , password and forget_code are required",
                                 });
                             }
                             case "PARSE": {
@@ -402,22 +413,30 @@ app.use(cors())
     )
     .group("/videos", (app) =>
         app.post(
-            "/add",
+            "/post",
             async ({ body }) => {
                 try {
-                    const { description, title, video, user_id } = body;
-                    const file_path = `/videos/${user_id}/${random_string()}`;
-                    const user = await users_model.findByIdAndUpdate(
-                        user_id,
-                        {
-                            $push: { videos: file_path },
-                        },
-                        { new: true }
-                    );
-                    if (user) {
-                        await Bun.write(file_path, video);
+                    const { description, title, file, user_id } = body;
+                    const path = `/videos/${user_id}/${random_string()}`;
+                    await Auth(user_id);
+                    const [vid, written] = await Promise.allSettled([
+                        await (
+                            await videos_model.create({
+                                description,
+                                path,
+                                title,
+                                user_id,
+                            })
+                        ).populate("user_id"),
+                        await Bun.write(path, file),
+                    ]);
+                    if (vid.status === "rejected") {
+                        throw new Error("please try again", { cause: 500 });
                     }
-                    throw new Error("user doesn't exist");
+                    if (written.status === "rejected") {
+                        throw new Error("please try again", { cause: 500 });
+                    }
+                    return json({ payload: vid }, { status: 200 });
                 } catch (error: any) {
                     return json(
                         {
@@ -432,7 +451,7 @@ app.use(cors())
             },
             {
                 body: types.Object({
-                    video: types.File({
+                    file: types.File({
                         type: ["video/mp4"],
                         maxSize: "100m",
                     }),
@@ -440,7 +459,7 @@ app.use(cors())
                         maxLength: 255,
                     }),
                     description: types.String({
-                        maxLength: 1000,
+                        maxLength: 4095,
                     }),
                     user_id: types.String(),
                 }),
@@ -448,7 +467,7 @@ app.use(cors())
                     switch (code) {
                         case "VALIDATION": {
                             return json({
-                                error: "email and password are required",
+                                error: "description, title, video and user_id  are required",
                             });
                         }
                         case "PARSE": {
@@ -465,9 +484,14 @@ app.use(cors())
                 },
             }
         )
-    );
-
-app.all("*", () => json({ dismiss: "wrong route" }));
-app.listen(port, () => {
-    console.log(`server is up ${app.server?.hostname}:${app.server?.port}`);
-});
+    )
+    .all("*", () =>
+        json("<h1>Hello</h1>", {
+            headers: {
+                "Content-Type": "text/html; charset=utf-8",
+            },
+        })
+    )
+    .listen(port, () => {
+        console.log(`server is up ${app.server?.hostname}:${app.server?.port}`);
+    });

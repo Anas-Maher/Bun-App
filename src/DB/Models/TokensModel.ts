@@ -1,5 +1,6 @@
 import { Schema, Types, model } from "mongoose";
 import { Expiration_Time } from "../../utils/Envs";
+import { type InferSchemaType } from "mongoose";
 export interface Token {
     token: string;
     user?: Types.ObjectId;
@@ -7,7 +8,7 @@ export interface Token {
     agent?: string;
     expires_at?: string;
 }
-const token_schema = new Schema<Token>(
+const tokens_schema = new Schema<Token>(
     {
         token: {
             type: String,
@@ -36,10 +37,13 @@ const token_schema = new Schema<Token>(
     }
 );
 
-token_schema.pre("save", function () {
+tokens_schema.pre("save", function () {
     this["expires_at"] = Expiration_Time.toString();
 });
 
-const token_model = model("tokens", token_schema);
+const tokens_model = model<InferSchemaType<typeof tokens_schema>>(
+    "tokens",
+    tokens_schema
+);
 
-export default token_model;
+export default tokens_model;

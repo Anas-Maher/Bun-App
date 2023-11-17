@@ -1,7 +1,7 @@
 import json from "../utils/Json";
 import { JWTPayloadSpec } from "@elysiajs/jwt";
 import { UnwrapSchema } from "elysia";
-import { Prettify, LocalHook } from "elysia/dist/types.js";
+import { Prettify, LocalHook } from "elysia/dist/types";
 
 export interface Signup {
     body: {
