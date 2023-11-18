@@ -17,14 +17,9 @@ import {
     email_template,
     Auth,
 } from "./utils";
-import { html } from "@elysiajs/html";
 const app = new Elysia();
 await Connect();
 app.use(cors())
-    // .use(
-    //     // @ts-ignore
-    //     html({ autoDoctype: true })
-    // )
     .use(
         jwt({
             name: "jwt",
@@ -221,12 +216,12 @@ app.use(cors())
                         const agent = headers?.agent as string;
                         const [{ status: status1 }, { status: status2 }] =
                             await Promise.allSettled([
-                                await tokens_model.create({
+                                tokens_model.create({
                                     agent,
                                     token,
                                     user: user.id,
                                 }),
-                                await user.updateOne(
+                                user.updateOne(
                                     { $set: { status: "online" } },
                                     { new: true }
                                 ),
@@ -414,29 +409,28 @@ app.use(cors())
     .group("/videos", (app) =>
         app.post(
             "/post",
-            async ({ body }) => {
+            async ({ body, jwt }) => {
                 try {
                     const { description, title, file, user_id } = body;
-                    const path = `/videos/${user_id}/${random_string()}`;
-                    await Auth(user_id);
+                    const path = `../videos/${user_id}/${random_string()}`;
                     const [vid, written] = await Promise.allSettled([
-                        await (
-                            await videos_model.create({
-                                description,
-                                path,
-                                title,
-                                user_id,
-                            })
-                        ).populate("user_id"),
-                        await Bun.write(path, file),
+                        videos_model.create({
+                            description,
+                            path,
+                            title,
+                            // user_id,
+                        }),
+                        // .then((vid) => vid.populate("user_id")),
+                        Bun.write(path, file),
                     ]);
                     if (vid.status === "rejected") {
                         throw new Error("please try again", { cause: 500 });
                     }
                     if (written.status === "rejected") {
+                        console.log("write");
                         throw new Error("please try again", { cause: 500 });
                     }
-                    return json({ payload: vid }, { status: 200 });
+                    return json({ payload: vid }, { status: 201 });
                 } catch (error: any) {
                     return json(
                         {
@@ -450,6 +444,7 @@ app.use(cors())
                 }
             },
             {
+                type: "multipart/form-data",
                 body: types.Object({
                     file: types.File({
                         type: ["video/mp4"],
@@ -463,25 +458,28 @@ app.use(cors())
                     }),
                     user_id: types.String(),
                 }),
-                error({ code }) {
-                    switch (code) {
-                        case "VALIDATION": {
-                            return json({
-                                error: "description, title, video and user_id  are required",
-                            });
-                        }
-                        case "PARSE": {
-                            return json({
-                                error: "error parsing json",
-                            });
-                        }
-                        default: {
-                            return json({
-                                error: "internal server error",
-                            });
-                        }
-                    }
-                },
+                headers: types.Object({
+                    auth: types.String(),
+                }),
+                // error({ code }) {
+                //     switch (code) {
+                //         case "VALIDATION": {
+                //             return json({
+                //                 error: "description, title, video and user_id  are required",
+                //             });
+                //         }
+                //         case "PARSE": {
+                //             return json({
+                //                 error: "error parsing data",
+                //             });
+                //         }
+                //         default: {
+                //             return json({
+                //                 error: "internal server error",
+                //             });
+                //         }
+                //     }
+                // },
             }
         )
     )

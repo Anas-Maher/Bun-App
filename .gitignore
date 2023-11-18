@@ -45,3 +45,5 @@ package-lock.json
 
 # config files
 bun.lockb
+
+vid*

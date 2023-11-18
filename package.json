@@ -2,7 +2,7 @@
   "name": "bun",
   "version": "1.0.0",
   "scripts": {
-    "dev": "bun run --watch src/App.tsx"
+    "dev": "bun run --watch src/App.ts"
   },
   "dependencies": {
     "@elysiajs/cookie": "^0.7.0",

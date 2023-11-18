@@ -9,7 +9,7 @@ const videos_schema = new Schema<Video>(
     {
         user_id: {
             type: Types.ObjectId,
-            required: true,
+            // required: true,
             ref: "users",
         },
         description: {
