@@ -1,86 +1,65 @@
-export const Generate_Html = (
-    ...urls: Array<{ url: string; msg: string }>
-): string => {
-    return urls
-        .map(
-            ({ url, msg }) =>
-                `
-        <a 
-        style="text-decoration:none;font-size:1.3rem;margin:1rem auto;" href="${url}">${msg}</a>
-        <br/>
-        `
-        )
-        .join("\n");
-};
+interface Template {
+    link: string;
+    link2?: string;
+    title?: string;
+    text?: string;
+    text2?: string;
+}
 
-export default function email_template(link: string): string {
+const email_template = (data: Template) => {
+    const {
+        link,
+        link2 = "http://",
+        text = "Verify Email Address",
+        text2 = "Resend",
+        title = "Email Confirmation",
+    } = data;
     return `
     <!DOCTYPE html>
     <html>
         <head>
-            <title>Email Confirmation</title>
+            <title>${title}</title>
         </head>
-        <style type="text/css">
-            body {
-                background-color: #88bdbf;
-                margin: 0px;
-            }
-        </style>
-        <body style="margin: 0px">
-            <table
-                border="0"
-                width="50%"
+        <body style="position:relative;">
+            <div
                 style="
-                    margin: auto;
-                    padding: 30px;
-                    background-color: #f3f3f3;
-                    border: 1px solid #630e2b;
-                    border-radius: 2rem;
+                    margin: 0 auto;
+                    padding: 0;
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    translate: -50% -50%;
+                    width: 400px;
+                    height: 320px;
+                    text-align: center;
                 ">
-                <tr>
-                    <td>
-                        <table
-                            border="0"
-                            cellpadding="0"
-                            cellspacing="0"
-                            style="
-                                text-align: center;
-                                width: 100%;
-                                padding: 2rem 2rem 3rem ;
-                                display: flex;
-                                justify-content: center;
-                                align-items: center;
-                                background-color: #fff;
-                            ">
-                            <tr>
-                                <td>
-                                    <h1 style="padding-top: 25px; color: #630e2b">
-                                        Email Confirmation
-                                    </h1>
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <a
-                                        href="${link}"
-                                        style="
-                                            margin: 10px 0px 30px 0px;
-                                            border-radius: .75rem;
-                                            padding: 10px 20px;
-                                            border: 0;
-                                            color: #fff;
-                                            text-decoration: none;
-                                            background-color: #630e2b;
-                                        "
-                                        >Verify Email address</a
-                                    >
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
+                <h1>${title}</h1>
+                <a
+                    style="
+                        text-decoration: none;
+                        display: block;
+                        padding: 0.5rem 0.75rem;
+                        font-size: 1rem;
+                        color: #000;
+                    "
+                    href="${link}"
+                    >${text}</a
+                >
+                <a
+                    style="
+                        text-decoration: none;
+                        display: block;
+                        padding: 0.5rem 0.75rem;
+                        font-size: 1rem;
+                        color: #000;
+                    "
+                    href="${link2}"
+                    >${text2}</a
+                >
+            </div>
         </body>
     </html>
 `;
-}
+};
+
+export default email_template;

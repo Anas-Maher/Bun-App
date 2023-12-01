@@ -1,10 +1,10 @@
 import Elysia, { t as types } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { jwt } from "@elysiajs/jwt";
-import { Connect, users_model, tokens_model, videos_model } from "./DB";
+import { users_model, tokens_model, videos_model, Connect } from "./DB";
+import { existsSync, mkdirSync } from "node:fs";
 import {
     json,
-    Expiration_Time,
     port,
     jwt_signature,
     base_url,
@@ -15,47 +15,58 @@ import {
     check_password,
     global_error_handler,
     email_template,
-    Auth,
+    redirect,
+    login_page,
+    signup_page,
+    Expires_at,
 } from "./utils";
-const app = new Elysia();
 await Connect();
-app.use(cors())
+new Elysia()
+    .use(cors())
     .use(
         jwt({
             name: "jwt",
             secret: jwt_signature,
-            exp: Expiration_Time,
         })
     )
     .group("/auth", (app) =>
         app
             .post(
                 "/signup",
-                async ({ body }) => {
+                async ({ body, jwt }) => {
                     try {
                         const {
                             email,
                             user_name,
                             role = "user",
                             password,
+                            phone,
                         } = body;
-                        const { valid, message } = check_password(password);
-                        if (!valid) {
-                            console.log("err");
-                            throw new Error(message, { cause: 400 });
+                        const valid = check_password(password);
+                        if (!valid.valid) {
+                            throw new Error(valid.message, { cause: 400 });
                         }
                         const user = await users_model.findOne({
                             email,
                         });
-                        if (user) {
+                        if (user !== null) {
                             throw new Error("user_already exits", {
                                 cause: 401,
                             });
                         }
                         const code = random_string();
-                        const html = email_template(
-                            `${base_url}/auth/confirm-email/${code}`
-                        );
+                        const token1 = await jwt.sign({
+                            code,
+                            expires_at: Expires_at(300),
+                        });
+                        const token2 = await jwt.sign({
+                            code,
+                            expires_at: Expires_at(276480),
+                        });
+                        const html = email_template({
+                            link: `${base_url}/auth/confirm-email/${token1}`,
+                            link2: `${base_url}/auth/confirm-email/${token2}`,
+                        });
                         const sent = await SendMail({
                             html,
                             to: email,
@@ -63,11 +74,11 @@ app.use(cors())
                         if (sent) {
                             await users_model.create({
                                 user_name,
-                                password: Hash_password(password, 10),
+                                password: Hash_password(password),
                                 email,
-                                activation_code: { code },
+                                activation_code: code,
                                 role,
-                                videos: [],
+                                phone,
                             });
                             return json(
                                 {
@@ -98,8 +109,10 @@ app.use(cors())
                                 pattern: "user|admin",
                             })
                         ),
+                        phone: types.Optional(types.String()),
                         password: types.String({
                             minLength: 8,
+                            maxLength: 12,
                         }),
                     }),
                     error: function ({ code }) {
@@ -111,7 +124,7 @@ app.use(cors())
                             }
                             case "PARSE": {
                                 return json({
-                                    error: "error parsing json",
+                                    error: "error parsing body",
                                 });
                             }
                             default: {
@@ -124,64 +137,124 @@ app.use(cors())
                 }
             )
             .get(
-                "/confirm-email/:code",
-                async ({ params: { code } }) => {
+                "/confirm-email/:activation_code",
+                async ({ params: { activation_code }, jwt }) => {
                     try {
-                        const user = await users_model.findOne({
-                            $and: [
-                                {
-                                    "activation_code.code": code,
-                                    "activation_code.valid": true,
-                                },
-                            ],
-                        });
-                        if (user == null) {
-                            return json(
-                                {
-                                    error: "try to signup again",
-                                },
-                                { status: 403 }
-                            );
+                        const token = await jwt.verify(activation_code);
+                        if (token === false) {
+                            throw new Error("invalid", { cause: 403 });
                         }
-                        user.updateOne(
+                        if (Date.now() > Number(token?.expires_at)) {
+                            throw new Error("try to use the resend", {
+                                cause: 403,
+                            });
+                        }
+                        const user = await users_model.findOneAndUpdate(
+                            {
+                                activation_code: token?.code,
+                            },
                             {
                                 $set: {
                                     confirmed: true,
-                                    "activation_code.valid": false,
                                 },
                             },
                             { new: true }
                         );
-                        return json({
-                            payload: {
-                                message: "done! now try to login",
-                            },
-                        });
+                        if (user == null) {
+                            return redirect(signup_page, { status: 403 });
+                        }
+                        return redirect(login_page);
                     } catch (error: any) {
-                        return json({
-                            error: {
-                                message: "Error Ocurred",
-                                error: error?.message ?? error,
-                            },
-                        });
+                        return global_error_handler(error)
                     }
                 },
                 {
                     params: types.Object({
-                        code: types.String({
-                            readOnly: true,
-                        }),
+                        activation_code: types.String(),
                     }),
                     error({ code }) {
                         switch (code) {
                             case "VALIDATION": {
                                 return json({
-                                    error: "email are required",
+                                    error: "activation code is required",
                                 });
                             }
                             case "PARSE": {
                                 return json({
-                                    error: "error parsing json",
+                                    error: "error parsing body",
+                                });
+                            }
+                            default: {
+                                return json({
+                                    error: "internal server error",
+                                });
+                            }
+                        }
+                    },
+                }
+            )
+            .get(
+                "/reconfirm-email/:activation_code",
+                async ({ params: { activation_code }, jwt }) => {
+                    try {
+                        const token = await jwt.verify(activation_code);
+                        if (token === false) {
+                            throw new Error("invalid", { cause: 403 });
+                        }
+                        if (Date.now() > Number(token?.expires_at)) {
+                            await users_model.findOneAndDelete({
+                                activation_code: token?.code,
+                            });
+                            throw new Error("try to signup again", {
+                                cause: 403,
+                            });
+                        }
+                        const user = await users_model.findOne({
+                            activation_code: token?.code,
+                        });
+                        if (user == null) {
+                            return redirect(signup_page, { status: 403 });
+                        }
+                        if (user.confirmed === true) {
+                            return redirect(login_page);
+                        }
+                        const new_token = await jwt.sign({
+                            code: user.activation_code,
+                            expires_at: Expires_at(120),
+                        });
+                        const sent = await SendMail({
+                            to: user.email,
+                            html: email_template({
+                                link: `${base_url}/auth/confirm-email/${new_token}`,
+                            }),
+                        });
+                        if (sent) {
+                            return json({ payload: "check your email now" });
+                        }
+                        await users_model.findOneAndDelete({
+                            activation_code: token?.code,
+                        });
+                        throw new Error("internal server error", {
+                            cause: 500,
+                        });
+                    } catch (error: any) {
+                        return global_error_handler(error)
+                    }
+                },
+                {
+                    params: types.Object({
+                        activation_code: types.String(),
+                    }),
+                    error({ code }) {
+                        switch (code) {
+                            case "VALIDATION": {
+                                return json({
+                                    error: "activation code is required",
+                                });
+                            }
+                            case "PARSE": {
+                                return json({
+                                    error: "error parsing body",
                                 });
                             }
                             default: {
@@ -213,25 +286,17 @@ app.use(cors())
                             );
                         }
                         const token = await jwt.sign({ id: user.id, email });
-                        const agent = headers?.agent as string;
-                        const [{ status: status1 }, { status: status2 }] =
-                            await Promise.allSettled([
-                                tokens_model.create({
-                                    agent,
-                                    token,
-                                    user: user.id,
-                                }),
-                                user.updateOne(
-                                    { $set: { status: "online" } },
-                                    { new: true }
-                                ),
-                            ]);
-                        if (status1 === "rejected") {
-                            throw new Error("error please try again");
-                        }
-                        if (status2 === "rejected") {
-                            throw new Error("error please try again");
-                        }
+                        await tokens_model.create({
+                            agent: headers?.agent as string,
+                            token,
+                            user: user.id,
+                        });
+                        await user
+                            .updateOne(
+                                { $set: { status: "online" } },
+                                { new: true }
+                            )
+                            .populate(["user_comments"]);
                         return json({ payload: token });
                     } catch (error: any) {
                         return global_error_handler(error);
@@ -245,6 +310,7 @@ app.use(cors())
                         }),
                         password: types.String({
                             minLength: 8,
+                            maxLength: 12,
                         }),
                     }),
                     error({ code }) {
@@ -256,7 +322,7 @@ app.use(cors())
                             }
                             case "PARSE": {
                                 return json({
-                                    error: "error parsing json",
+                                    error: "error parsing body",
                                 });
                             }
                             default: {
@@ -283,6 +349,7 @@ app.use(cors())
                         const sent = await SendMail({
                             to: user.email,
                             subject: "Reset Password",
+                            html: "",
                             text: `HI ${user.user_name}\nyour code to reset your password is ${forget_code}`,
                         });
                         if (sent) {
@@ -314,7 +381,10 @@ app.use(cors())
                             format: "email",
                             default: "test@gmail.com",
                         }),
-                        password: types.String(),
+                        password: types.String({
+                            minLength: 8,
+                            maxLength: 12,
+                        }),
                     }),
                     error({ code }) {
                         switch (code) {
@@ -325,7 +395,7 @@ app.use(cors())
                             }
                             case "PARSE": {
                                 return json({
-                                    error: "error parsing json",
+                                    error: "error parsing body",
                                 });
                             }
                             default: {
@@ -342,9 +412,9 @@ app.use(cors())
                 async ({ body }) => {
                     try {
                         const { email, forget_code, password } = body;
-                        const { valid, message } = check_password(password);
-                        if (!valid) {
-                            throw new Error(message, { cause: 401 });
+                        const valid = check_password(password);
+                        if (!valid.valid) {
+                            throw new Error(valid.message, { cause: 401 });
                         }
                         const user = await users_model.findOneAndUpdate(
                             {
@@ -393,7 +463,7 @@ app.use(cors())
                             }
                             case "PARSE": {
                                 return json({
-                                    error: "error parsing json",
+                                    error: "error parsing body",
                                 });
                             }
                             default: {
@@ -409,27 +479,26 @@ app.use(cors())
     .group("/videos", (app) =>
         app.post(
             "/post",
-            async ({ body, jwt }) => {
+            async ({ body, jwt, headers: { Authorization } }) => {
                 try {
                     const { description, title, file, user_id } = body;
-                    const path = `../videos/${user_id}/${random_string()}`;
-                    const [vid, written] = await Promise.allSettled([
-                        videos_model.create({
+                    var a = await jwt.verify(Authorization);
+                    const path = `videos/${user_id}/${random_string()}`;
+                    if (!existsSync(path)) {
+                        mkdirSync(path, { recursive: true });
+                    }
+                    const vid = await videos_model
+                        .create({
                             description,
                             path,
                             title,
-                            // user_id,
-                        }),
-                        // .then((vid) => vid.populate("user_id")),
-                        Bun.write(path, file),
-                    ]);
-                    if (vid.status === "rejected") {
-                        throw new Error("please try again", { cause: 500 });
-                    }
-                    if (written.status === "rejected") {
-                        console.log("write");
-                        throw new Error("please try again", { cause: 500 });
-                    }
+                            user_id,
+                        })
+                        .then((vid) =>
+                            vid.populate({
+                                path: "",
+                            })
+                        );
                     return json({ payload: vid }, { status: 201 });
                 } catch (error: any) {
                     return json(
@@ -448,7 +517,7 @@ app.use(cors())
                 body: types.Object({
                     file: types.File({
                         type: ["video/mp4"],
-                        maxSize: "100m",
+                        maxSize: "500m",
                     }),
                     title: types.String({
                         maxLength: 255,
@@ -459,37 +528,44 @@ app.use(cors())
                     user_id: types.String(),
                 }),
                 headers: types.Object({
-                    auth: types.String(),
+                    Authorization: types.String(),
                 }),
-                // error({ code }) {
-                //     switch (code) {
-                //         case "VALIDATION": {
-                //             return json({
-                //                 error: "description, title, video and user_id  are required",
-                //             });
-                //         }
-                //         case "PARSE": {
-                //             return json({
-                //                 error: "error parsing data",
-                //             });
-                //         }
-                //         default: {
-                //             return json({
-                //                 error: "internal server error",
-                //             });
-                //         }
-                //     }
-                // },
+                error({ code }) {
+                    switch (code) {
+                        case "VALIDATION": {
+                            return json({
+                                error: "description, title, video and user_id  are required",
+                            });
+                        }
+                        case "PARSE": {
+                            return json({
+                                error: "error parsing data",
+                            });
+                        }
+                        default: {
+                            return json({
+                                error: "internal server error",
+                            });
+                        }
+                    }
+                },
             }
         )
     )
-    .all("*", () =>
-        json("<h1>Hello</h1>", {
-            headers: {
-                "Content-Type": "text/html; charset=utf-8",
-            },
-        })
-    )
+    .all("*", async ({ jwt }) => {
+        const decoded = await jwt.verify(await jwt.sign({}));
+        if (decoded !== false) {
+            const result = decoded;
+            console.log(
+                Object.keys(result),
+                Object.values(result),
+                { result },
+                result.iat
+            );
+            return json(decoded);
+        }
+        return "Fuck";
+    })
     .listen(port, () => {
-        console.log(`server is up ${app.server?.hostname}:${app.server?.port}`);
+        console.log(`localhost:${port}`);
     });

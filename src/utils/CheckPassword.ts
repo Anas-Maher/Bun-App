@@ -19,7 +19,7 @@ function check_password(password: string): Password_Strength {
             message: "your password must at least have 1 special character",
         };
     }
-    return { valid: true, message: "" };
+    return { valid: true };
 }
 
 export default check_password;

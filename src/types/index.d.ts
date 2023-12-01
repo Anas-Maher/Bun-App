@@ -27,10 +27,12 @@ export interface Login {
 }
 
 export type Hash = [`${number}`, `${string}`, `${string}`];
-export type Password_Strength = {
-    valid: boolean;
-    message: string;
-};
+export type Password_Strength =
+    | { valid: true }
+    | {
+          valid: false;
+          message: string;
+      };
 
 type Error_Func = typeof json;
 

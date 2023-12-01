@@ -4,12 +4,15 @@ export interface Video {
     title: string;
     description: string;
     path: string;
+    likes: number;
+    dislikes: number;
+    // comments: Types.Array<Record<string, string>>;
 }
 const videos_schema = new Schema<Video>(
     {
         user_id: {
             type: Types.ObjectId,
-            // required: true,
+            required: true,
             ref: "users",
         },
         description: {
@@ -24,6 +27,36 @@ const videos_schema = new Schema<Video>(
             type: String,
             required: true,
         },
+        likes: {
+            type: Number,
+            required: true,
+            default: 0,
+        },
+        dislikes: {
+            type: Number,
+            required: true,
+            default: 0,
+        },
+        // comments: [
+        //     {
+        //         type: {
+        //             comment: {
+        //                 type: String,
+        //                 required: true,
+        //             },
+        //             likes: {
+        //                 type: Number,
+        //                 required: true,
+        //                 default: 0,
+        //             },
+        //             dislikes: {
+        //                 type: Number,
+        //                 required: true,
+        //                 default: 0,
+        //             },
+        //         },
+        //     },
+        // ],
     },
     {
         timestamps: true,

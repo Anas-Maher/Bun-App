@@ -22,11 +22,12 @@ import random_string from "./RandomString";
 import redirect from "./Redirect";
 import format from "./Format";
 import SendMail from "./SendMail";
+import Expires_at from "./Expires_at";
 
 export {
     Auth,
     check_password,
-    compare_passwords ,
+    compare_passwords,
     global_error_handler,
     Handle_errors,
     Hash_password,
@@ -36,6 +37,7 @@ export {
     redirect,
     format,
     SendMail,
+    Expires_at,
     login_page,
     signup_page,
     base_url,
